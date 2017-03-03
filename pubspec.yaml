@@ -1,0 +1,15 @@
+name: reddit_crawl
+version: 0.0.1
+description: A sample command-line application.
+#author: Filip Hracek <email@example.com>
+#homepage: https://www.example.com
+
+environment:
+  sdk: '>=1.0.0 <2.0.0'
+
+dependencies:
+  http: ^0.11.3+9
+  path: ^1.4.1
+
+dev_dependencies:
+  test: '>=0.12.0 <0.13.0'
