@@ -87,7 +87,6 @@ Future<Null> main(List<String> arguments) async {
   print("TSV written to $tsvFile");
 }
 
-/// curl -u ***REMOVED***:***REMOVED*** --data "grant_type=client_credentials" -A "filiph UA" https://www.reddit.com/api/v1/access_token
 var accessToken;
 
 final jsonEnconder = new JsonEncoder.withIndent('  ');
@@ -103,6 +102,14 @@ String encodeAuth(String username, String password) {
   return base64;
 }
 
+/// Updates [accessToken] by calling the Reddit OAuth API.
+///
+/// Equivalent to:
+///
+///     curl -u app_id:secret \
+///         --data "grant_type=client_credentials" \
+///         -A "some UA other than default" \
+///         https://www.reddit.com/api/v1/access_token
 Future<bool> _auth(http.Client client) async {
   final uri = Uri.parse(r"https://www.reddit.com/api/v1/access_token");
   final request = new http.Request("post", uri);
