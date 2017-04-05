@@ -24,3 +24,8 @@ doc/api/
 
 # Don't commit secrets to CVS
 lib/config.dart
+passwords.txt
+
+# Don't commit outputs
+*.json
+*.tsv
