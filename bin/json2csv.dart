@@ -15,5 +15,6 @@ void main(List<String> args) {
 
   final content = file.readAsStringSync();
   final List<Map<String, Object>> json = JSON.decode(content);
-  redditJson2tsv(json).forEach(print);
+  submissionsJson2tsv(json).forEach(print);
+  //  subredditsJson2tsv(json).forEach(print);
 }
