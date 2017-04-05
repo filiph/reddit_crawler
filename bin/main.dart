@@ -63,6 +63,46 @@ Future<Null> main(List<String> arguments) async {
   print("TSV written to $tsvFile");
 }
 
+/// List of top programming and SW development subreddits that are generic
+/// or didactic in nature.
+///
+/// Together, these 12 subreddits have 1M+ subscribers (cumulative).
+const List<String> subreddits = const [
+  // Generic
+  "programming",
+  "WatchPeopleCode",
+  "AskProgramming",
+  "programmingtools",
+  "programmerchat",
+  // Didactic
+  "learnprogramming",
+  "dailyprogrammer",
+  "tinycode",
+  "programmingchallenges",
+  "code",
+  "ProgrammingBuddies",
+  "programming_tutorials"
+];
+
+var accessToken;
+
+final jsonEnconder = new JsonEncoder.withIndent('  ');
+
+/// The url part that creates a 'temporary multireddit' (like `pics+aww` in
+/// http://www.reddit.com/r/pics+aww).
+final String subredditsInUrl = subreddits.join('+');
+
+final userAgent = "Dart watcher tool (github.com/filiph)";
+
+final _random = new Random();
+
+String encodeAuth(String username, String password) {
+  final both = "$username:$password";
+  final bytes = UTF8.encode(both);
+  final base64 = BASE64.encode(bytes);
+  return base64;
+}
+
 /// Gets the listing even if it's multi-page.
 ///
 /// https://www.reddit.com/dev/api/#GET_subreddits_search
@@ -110,31 +150,6 @@ Future<List<Map<String, Object>>> findSubreddits(
 
   return entities;
 }
-
-/// List of top programming and SW development subreddits that are generic
-/// or didactic in nature.
-///
-/// Together, these 12 subreddits have 1M+ subscribers (cumulative).
-const List<String> subreddits = const [
-  // Generic
-  "programming",
-  "WatchPeopleCode",
-  "AskProgramming",
-  "programmingtools",
-  "programmerchat",
-  // Didactic
-  "learnprogramming",
-  "dailyprogrammer",
-  "tinycode",
-  "programmingchallenges",
-  "code",
-  "ProgrammingBuddies",
-  "programming_tutorials"
-];
-
-/// The url part that creates a 'temporary multireddit' (like `pics+aww` in
-/// http://www.reddit.com/r/pics+aww).
-final String subredditsInUrl = subreddits.join('+');
 
 /// Gets the listing even if it's multi-page, and adds it to [entities].
 Future getFullListing(String language, DateTime from, DateTime to,
@@ -191,21 +206,6 @@ Future getFullListing(String language, DateTime from, DateTime to,
     afterToken = jsonObject['data']['after'];
     if (afterToken == null) break;
   }
-}
-
-var accessToken;
-
-final jsonEnconder = new JsonEncoder.withIndent('  ');
-
-final userAgent = "Dart watcher tool (github.com/filiph)";
-
-final _random = new Random();
-
-String encodeAuth(String username, String password) {
-  final both = "$username:$password";
-  final bytes = UTF8.encode(both);
-  final base64 = BASE64.encode(bytes);
-  return base64;
 }
 
 /// Updates [accessToken] by calling the Reddit OAuth API.

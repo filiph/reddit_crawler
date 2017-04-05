@@ -52,7 +52,7 @@ Iterable<String> subredditsJson2tsv(List<Map<String, Object>> json) sync* {
   }
 }
 
-int _monthToQuarter(int month) => (month - 1) ~/ 3 + 1;
-
 int _monthToFirstMonthInQuarter(int month) =>
     1 + (_monthToQuarter(month) - 1) * 3;
+
+int _monthToQuarter(int month) => (month - 1) ~/ 3 + 1;
