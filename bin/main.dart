@@ -27,34 +27,72 @@ Future<Null> main(List<String> arguments) async {
     await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
   }
 
-  final queryParameters = {'q': '"in $language" programming nsfw:no'};
-  // TODO: use timestamp if we ever hit the 1000 results limit
-  //       https://www.reddit.com/wiki/search#wiki_cloudsearch_syntax
-  final uri = Uri
-      .parse("https://oauth.reddit.com/search")
-      .replace(queryParameters: queryParameters);
-  final firstJson = await _getListing(client, uri);
-  Map jsonObject = JSON.decode(firstJson);
+  //  final subreddits = await findSubreddits("programming", client);
+  //  print(JSON.encode(subreddits));
+  //  client.close();
+  //  return;
 
-  if (jsonObject['data'] == null) {
-    print("ERROR");
-    print(jsonEnconder.convert(jsonObject));
-    exitCode = 2;
-    client.close();
-    return;
+  final now = new DateTime.now();
+  const int monthCount = 72;
+
+  final List<Map<String, Object>> entities = [];
+
+  for (int i = 0; i < monthCount; i++) {
+    final to = new DateTime(now.year, now.month - i);
+    final from = new DateTime(to.year, to.month - 1);
+
+    print("Getting for ${from.year}-${from.month}.");
+    await getFullListing(language, from, to, client, entities);
   }
 
-  final List<Map<String, Object>> entities = jsonObject['data']['children'];
+  client.close();
 
-  String afterToken = jsonObject['data']['after'];
+  print("\nFound ${entities.length} articles.");
 
-  while (afterToken != null) {
+  final output = jsonEnconder.convert(entities);
+
+  final file = new File(
+      "output-$language-${now.toIso8601String().substring(0, 10)}.json");
+  await file.writeAsString(output);
+  print("Output written to $file");
+
+  final tsvFile = new File(path.withoutExtension(file.path) + ".tsv");
+  final tsvOutput = submissionsJson2tsv(entities);
+
+  await tsvFile.writeAsString(tsvOutput.join('\n'));
+  print("TSV written to $tsvFile");
+}
+
+/// Gets the listing even if it's multi-page.
+///
+/// https://www.reddit.com/dev/api/#GET_subreddits_search
+Future<List<Map<String, Object>>> findSubreddits(
+    String query, http.Client client) async {
+  final queryParameters = {
+    'q': query,
+  };
+
+  final List<Map<String, Object>> entities = [];
+
+  String afterToken;
+
+  // ignore: literal_only_boolean_expressions
+  while (true) {
     await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
-    queryParameters['after'] = afterToken;
-    final nextUri = uri.replace(queryParameters: queryParameters);
-    final nextJson = await _getListing(client, nextUri);
-    jsonObject = JSON.decode(nextJson);
-    if (jsonObject['data'] == null) {
+    if (afterToken != null) {
+      queryParameters['after'] = afterToken;
+    }
+    final uri = Uri
+        .parse("https://oauth.reddit.com/subreddits/search")
+        .replace(queryParameters: queryParameters);
+    final nextJson = await _getListing(client, uri);
+    Map<String, dynamic> jsonObject;
+    try {
+      jsonObject = JSON.decode(nextJson);
+    } on FormatException {
+      print("\nERROR: response isn't parseable JSON");
+    }
+    if (jsonObject == null || jsonObject['data'] == null) {
       print("\nERROR?");
       print(jsonEnconder.convert(jsonObject));
       await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
@@ -67,24 +105,92 @@ Future<Null> main(List<String> arguments) async {
     entities.addAll(jsonObject['data']['children']);
     stdout.write(".");
     afterToken = jsonObject['data']['after'];
+    if (afterToken == null) break;
   }
 
-  client.close();
+  return entities;
+}
 
-  final output = jsonEnconder.convert(entities);
+/// List of top programming and SW development subreddits that are generic
+/// or didactic in nature.
+///
+/// Together, these 12 subreddits have 1M+ subscribers (cumulative).
+const List<String> subreddits = const [
+  // Generic
+  "programming",
+  "WatchPeopleCode",
+  "AskProgramming",
+  "programmingtools",
+  "programmerchat",
+  // Didactic
+  "learnprogramming",
+  "dailyprogrammer",
+  "tinycode",
+  "programmingchallenges",
+  "code",
+  "ProgrammingBuddies",
+  "programming_tutorials"
+];
 
-  final now = new DateTime.now();
+/// The url part that creates a 'temporary multireddit' (like `pics+aww` in
+/// http://www.reddit.com/r/pics+aww).
+final String subredditsInUrl = subreddits.join('+');
 
-  final file =
-      new File("output-$language-${now.year}-${now.month}-${now.day}.json");
-  await file.writeAsString(output);
-  print("Output written to $file");
+/// Gets the listing even if it's multi-page, and adds it to [entities].
+Future getFullListing(String language, DateTime from, DateTime to,
+    http.Client client, List<Map<String, Object>> entities) async {
+  // https://www.reddit.com/wiki/search#wiki_cloudsearch_syntax
+  final cloudSearchQuery = "(and "
+      "(field text '$language') "
+      "timestamp:${from.millisecondsSinceEpoch ~/ 1000}"
+      "..${to.millisecondsSinceEpoch ~/ 1000}"
+      ")";
 
-  final tsvFile = new File(path.withoutExtension(file.path) + ".tsv");
-  final tsvOutput = redditJson2tsv(entities);
+  print("query: $cloudSearchQuery");
 
-  await tsvFile.writeAsString(tsvOutput.join('\n'));
-  print("TSV written to $tsvFile");
+  final queryParameters = {
+    'q': cloudSearchQuery,
+    't': 'all',
+    // restrict_sr must be 'on' for temporary multireddits
+    // https://www.reddit.com/r/help/comments/3muaic/how_to_use_cloudsearch_for_searching_multiple/cvi5yrn/
+    'restrict_sr': 'on',
+    'syntax': 'cloudsearch',
+  };
+
+  String afterToken;
+
+  // ignore: literal_only_boolean_expressions
+  while (true) {
+    await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
+    if (afterToken != null) {
+      queryParameters['after'] = afterToken;
+    }
+    final uri = Uri
+        .parse("https://oauth.reddit.com/r/$subredditsInUrl/search")
+        .replace(queryParameters: queryParameters);
+    print(uri);
+    final nextJson = await _getListing(client, uri);
+    Map<String, dynamic> jsonObject;
+    try {
+      jsonObject = JSON.decode(nextJson);
+    } on FormatException {
+      print("\nERROR: response isn't parseable JSON");
+    }
+    if (jsonObject == null || jsonObject['data'] == null) {
+      print("\nERROR?");
+      print(jsonEnconder.convert(jsonObject));
+      await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
+      if (!await _auth(client)) {
+        print("ERROR: couldn't authenticate");
+      }
+      await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
+      continue;
+    }
+    entities.addAll(jsonObject['data']['children']);
+    stdout.write(".");
+    afterToken = jsonObject['data']['after'];
+    if (afterToken == null) break;
+  }
 }
 
 var accessToken;
@@ -119,7 +225,15 @@ Future<bool> _auth(http.Client client) async {
   request.bodyFields = {'grant_type': 'client_credentials'};
   final response = await client.send(request);
   final json = await response.stream.bytesToString();
-  final jsonObject = JSON.decode(json);
+  Map jsonObject;
+  try {
+    jsonObject = JSON.decode(json);
+  } on FormatException {
+    print("ERROR: non-JSON response in auth");
+  }
+  if (jsonObject == null) {
+    return false;
+  }
   final newToken = jsonObject['access_token'];
   if (newToken == null) {
     print(jsonEnconder.convert(jsonObject));
@@ -133,6 +247,7 @@ Future<String> _getListing(http.Client client, Uri uri) async {
   final request = new http.Request("get", uri);
   request.headers[HttpHeaders.USER_AGENT] = userAgent;
   request.headers[HttpHeaders.AUTHORIZATION] = "bearer $accessToken";
+  // TODO: catch SocketException
   final response = await client.send(request);
   final json = await response.stream.bytesToString();
   return json;
