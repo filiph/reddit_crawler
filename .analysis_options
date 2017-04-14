@@ -1,8 +1,3 @@
-# This file allows you to configure the Dart analyzer.
-#
-# The commented part below is just for inspiration. Read the guide here:
-#   https://www.dartlang.org/guides/language/analysis-options
-
 analyzer:
   strong-mode: true
 linter:
@@ -28,7 +23,6 @@ linter:
     - library_names
     - library_prefixes
     - list_remove_unrelated_type
-    - literal_only_boolean_expressions
     - non_constant_identifier_names
     - one_member_abstracts
     - only_throw_errors

@@ -8,7 +8,9 @@ environment:
   sdk: '>=1.0.0 <2.0.0'
 
 dependencies:
+  args: ^0.13.7
   http: ^0.11.3+9
+  logging: ^0.11.3+1
   path: ^1.4.1
 
 dev_dependencies:

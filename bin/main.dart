@@ -6,24 +6,46 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:args/args.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 import 'package:reddit_crawl/config.dart' show clientId, appSecret;
 import 'package:reddit_crawl/json2csv.dart';
 
+final Logger log = new Logger("main");
+
 Future<Null> main(List<String> arguments) async {
-  if (arguments.length != 1) {
+  final parser = new ArgParser(allowTrailingOptions: true);
+
+  parser..addFlag('verbose', abbr: 'v', help: "Verbose mode.");
+
+  final options = parser.parse(arguments);
+
+  final bool verbose = options['verbose'];
+
+  Logger.root.onRecord.listen((ev) {
+    if (ev.level >= Level.SEVERE) {
+      stderr.writeln("[${ev.level}] -- ${ev.loggerName} -- ${ev.message}");
+    } else if (verbose) {
+      stdout.writeln("[${ev.level}] -- ${ev.loggerName} -- ${ev.message}");
+    }
+  });
+
+  if (options.rest.length != 1) {
     print("Exactly one argument is requred: a programming language name.");
+    print("\nAdditional options:");
+    print(parser.usage);
     exitCode = 2;
     return;
   }
 
-  final language = arguments.single.trim();
+  final language = options.rest.single.trim();
 
   final client = new http.Client();
 
   while (!await _auth(client)) {
-    print("ERROR");
+    log.warning("Couldn't authenticate. Retrying in <10 seconds.");
     await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
   }
 
@@ -41,26 +63,28 @@ Future<Null> main(List<String> arguments) async {
     final to = new DateTime(now.year, now.month - i);
     final from = new DateTime(to.year, to.month - 1);
 
-    print("Getting for ${from.year}-${from.month}.");
+    log.info("Getting for ${from.year}-${from.month}.");
     await getFullListing(language, from, to, client, entities);
   }
 
   client.close();
 
-  print("\nFound ${entities.length} articles.");
+  log.info("\nFound ${entities.length} articles.");
 
-  final output = jsonEnconder.convert(entities);
+  final output = jsonEncoder.convert(entities);
 
   final file = new File(
       "output-$language-${now.toIso8601String().substring(0, 10)}.json");
   await file.writeAsString(output);
-  print("Output written to $file");
+  log.info("Output written to $file");
 
   final tsvFile = new File(path.withoutExtension(file.path) + ".tsv");
   final tsvOutput = submissionsJson2tsv(entities);
 
   await tsvFile.writeAsString(tsvOutput.join('\n'));
-  print("TSV written to $tsvFile");
+  log.info("TSV written to $tsvFile");
+
+  print("\nOutput written to files:\n\t- $file\n\t- $tsvFile");
 }
 
 /// List of top programming and SW development subreddits that are generic
@@ -86,7 +110,7 @@ const List<String> subreddits = const [
 
 var accessToken;
 
-final jsonEnconder = new JsonEncoder.withIndent('  ');
+final jsonEncoder = new JsonEncoder.withIndent('  ');
 
 /// The url part that creates a 'temporary multireddit' (like `pics+aww` in
 /// http://www.reddit.com/r/pics+aww).
@@ -125,19 +149,15 @@ Future<List<Map<String, Object>>> findSubreddits(
     final uri = Uri
         .parse("https://oauth.reddit.com/subreddits/search")
         .replace(queryParameters: queryParameters);
-    final nextJson = await _getListing(client, uri);
-    Map<String, dynamic> jsonObject;
-    try {
-      jsonObject = JSON.decode(nextJson);
-    } on FormatException {
-      print("\nERROR: response isn't parseable JSON");
-    }
+    final Map<String, dynamic> jsonObject = await getListingJson(client, uri);
     if (jsonObject == null || jsonObject['data'] == null) {
-      print("\nERROR?");
-      print(jsonEnconder.convert(jsonObject));
+      log.warning(
+          "getListingJson returned null or a JSON that doesn't contain data");
+      log.info(jsonEncoder.convert(jsonObject));
       await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
+      log.info("re-authenticating");
       if (!await _auth(client)) {
-        print("ERROR: couldn't authenticate");
+        log.warning("ERROR: couldn't re-authenticate");
       }
       await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
       continue;
@@ -151,6 +171,24 @@ Future<List<Map<String, Object>>> findSubreddits(
   return entities;
 }
 
+/// Returns the decoded listing object returned by the Reddit API, or `null`
+/// if there was a problem (wrong response from the API or closed socket).
+///
+/// The returned object is documented here:
+/// https://www.reddit.com/dev/api/#listings
+Future<Map<String, dynamic>> getListingJson(http.Client client, Uri uri) async {
+  Map<String, dynamic> jsonObject;
+  try {
+    final nextJson = await _getListing(client, uri);
+    jsonObject = JSON.decode(nextJson);
+  } on FormatException {
+    log.warning("response isn't a parseable JSON");
+  } on SocketException {
+    log.warning("SocketException");
+  }
+  return jsonObject;
+}
+
 /// Gets the listing even if it's multi-page, and adds it to [entities].
 Future getFullListing(String language, DateTime from, DateTime to,
     http.Client client, List<Map<String, Object>> entities) async {
@@ -161,7 +199,7 @@ Future getFullListing(String language, DateTime from, DateTime to,
       "..${to.millisecondsSinceEpoch ~/ 1000}"
       ")";
 
-  print("query: $cloudSearchQuery");
+  log.info("query: $cloudSearchQuery");
 
   final queryParameters = {
     'q': cloudSearchQuery,
@@ -183,20 +221,16 @@ Future getFullListing(String language, DateTime from, DateTime to,
     final uri = Uri
         .parse("https://oauth.reddit.com/r/$subredditsInUrl/search")
         .replace(queryParameters: queryParameters);
-    print(uri);
-    final nextJson = await _getListing(client, uri);
-    Map<String, dynamic> jsonObject;
-    try {
-      jsonObject = JSON.decode(nextJson);
-    } on FormatException {
-      print("\nERROR: response isn't parseable JSON");
-    }
+    log.info(uri);
+    final Map<String, dynamic> jsonObject = await getListingJson(client, uri);
     if (jsonObject == null || jsonObject['data'] == null) {
-      print("\nERROR?");
-      print(jsonEnconder.convert(jsonObject));
+      log.warning(
+          "getListingJson returned null or a JSON that doesn't contain data");
+      log.info(jsonEncoder.convert(jsonObject));
       await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
+      log.info("re-authenticating");
       if (!await _auth(client)) {
-        print("ERROR: couldn't authenticate");
+        log.warning("ERROR: couldn't re-authenticate");
       }
       await new Future.delayed(new Duration(seconds: _random.nextInt(30)));
       continue;
@@ -229,14 +263,15 @@ Future<bool> _auth(http.Client client) async {
   try {
     jsonObject = JSON.decode(json);
   } on FormatException {
-    print("ERROR: non-JSON response in auth");
+    log.warning("ERROR: non-JSON response in auth: $json");
   }
   if (jsonObject == null) {
     return false;
   }
   final newToken = jsonObject['access_token'];
   if (newToken == null) {
-    print(jsonEnconder.convert(jsonObject));
+    log.warning("oauth response doesn't include access token");
+    log.info(jsonEncoder.convert(jsonObject));
     return false;
   }
   accessToken = newToken;
