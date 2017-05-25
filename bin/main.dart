@@ -116,7 +116,7 @@ final jsonEncoder = new JsonEncoder.withIndent('  ');
 /// http://www.reddit.com/r/pics+aww).
 final String subredditsInUrl = subreddits.join('+');
 
-final userAgent = "Dart watcher tool (github.com/filiph)";
+final userAgent = "cli:pZEWj5ECqAuYhg:v0.0.1 (by /u/fphat)";
 
 final _random = new Random();
 
