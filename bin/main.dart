@@ -24,6 +24,7 @@ Future<Null> main(List<String> arguments) async {
 
   final bool verbose = options['verbose'];
 
+  Logger.root.level = Level.FINEST;
   Logger.root.onRecord.listen((ev) {
     if (ev.level >= Level.SEVERE) {
       stderr.writeln("[${ev.level}] -- ${ev.loggerName} -- ${ev.message}");
@@ -230,6 +231,7 @@ Future getFullListing(String tech, DateTime from, DateTime to,
         .replace(queryParameters: queryParameters);
     log.info(uri);
     final Map<String, dynamic> jsonObject = await getListingJson(client, uri);
+    log.fine("getFullListing() returns ${jsonObject.toString()}");
     if (jsonObject == null || jsonObject['data'] == null) {
       log.warning(
           "getListingJson returned null or a JSON that doesn't contain data");
@@ -265,7 +267,9 @@ Future<bool> _auth(http.Client client) async {
       'Basic ${encodeAuth(clientId, appSecret)}';
   request.bodyFields = {'grant_type': 'client_credentials'};
   final response = await client.send(request);
+  log.finest("_auth() Headers: ${response.headers}");
   final json = await response.stream.bytesToString();
+  log.fine("_auth() json: $json");
   Map jsonObject;
   try {
     jsonObject = JSON.decode(json);
@@ -289,8 +293,11 @@ Future<String> _getListing(http.Client client, Uri uri) async {
   final request = new http.Request("get", uri);
   request.headers[HttpHeaders.USER_AGENT] = userAgent;
   request.headers[HttpHeaders.AUTHORIZATION] = "bearer $accessToken";
-  // TODO: catch SocketException
+  log.finest("Request headers: ${request.headers}");
   final response = await client.send(request);
+  log.finest("Response headers: ${response.headers}");
+  log.fine(
+      "X-Ratelimit-Remaining: ${response.headers['x-ratelimit-remaining']}");
   final json = await response.stream.bytesToString();
   return json;
 }
