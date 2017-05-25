@@ -33,7 +33,7 @@ Future<Null> main(List<String> arguments) async {
   });
 
   if (options.rest.length != 1) {
-    print("Exactly one argument is requred: a programming language name.");
+    print("Exactly one argument is requred: a name of a technology.");
     print("\nAdditional options:");
     print(parser.usage);
     exitCode = 2;
@@ -55,7 +55,7 @@ Future<Null> main(List<String> arguments) async {
   //  return;
 
   final now = new DateTime.now();
-  const int monthCount = 72;
+  const int monthCount = 6;
 
   final List<Map<String, Object>> entities = [];
 
