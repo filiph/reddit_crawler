@@ -190,16 +190,23 @@ Future<Map<String, dynamic>> getListingJson(http.Client client, Uri uri) async {
 }
 
 /// Gets the listing even if it's multi-page, and adds it to [entities].
-Future getFullListing(String language, DateTime from, DateTime to,
+Future getFullListing(String tech, DateTime from, DateTime to,
     http.Client client, List<Map<String, Object>> entities) async {
   // https://www.reddit.com/wiki/search#wiki_cloudsearch_syntax
   final cloudSearchQuery = "(and "
-      "(field text '$language') "
+      "(or (field title '$tech') (field selftext '$tech')) "
       "timestamp:${from.millisecondsSinceEpoch ~/ 1000}"
       "..${to.millisecondsSinceEpoch ~/ 1000}"
       ")";
 
   log.info("query: $cloudSearchQuery");
+
+  if (cloudSearchQuery.length > 512) {
+    throw new ArgumentError("The q parameter of a reddit query cannot be over"
+        "512 characters long (https://www.reddit.com/dev/api/#GET_search). It "
+        "is currently: '$cloudSearchQuery' (which is "
+        "${cloudSearchQuery.length} characters long)");
+  }
 
   final queryParameters = {
     'q': cloudSearchQuery,
