@@ -60,7 +60,7 @@ Future<Null> main(List<String> arguments) async {
   final List<Map<String, Object>> entities = [];
 
   for (int i = 0; i < monthCount; i++) {
-    final to = new DateTime(now.year, now.month - i);
+    final to = new DateTime(now.year, now.month + 1 - i);
     final from = new DateTime(to.year, to.month - 1);
 
     log.info("Getting for ${from.year}-${from.month}.");
