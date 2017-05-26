@@ -18,6 +18,9 @@ Future<Null> main(List<String> arguments) async {
 
   parser
     ..addFlag('verbose', abbr: 'v', help: "Verbose mode.")
+    ..addOption('months',
+        help: "Number of months to crawl in reverse chronological order.",
+        defaultsTo: "3")
     ..addFlag('mobile',
         help:
             "Use additional subreddits that specialize in mobile development.")
@@ -29,6 +32,7 @@ Future<Null> main(List<String> arguments) async {
   final bool verbose = options['verbose'];
   final bool mobile = options['mobile'];
   final bool web = options['web'];
+  final int monthCount = int.parse(options['months']);
 
   Logger.root.level = Level.FINEST;
   Logger.root.onRecord.listen((ev) {
@@ -137,10 +141,6 @@ const List<String> mobileSubreddits = const [
   "iOSProgramming",
   "learnandroid"
 ];
-
-/// Number of months (including the current one) to crawl
-/// (in reverse chronology).
-const int monthCount = 3;
 
 const List<String> webSubreddits = const [
   "webdev",
