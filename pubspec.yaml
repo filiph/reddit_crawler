@@ -1,5 +1,5 @@
 name: reddit_crawl
-version: 0.0.1
+version: 0.0.2
 description: A sample command-line application.
 author: Filip Hracek <filip.hracek@gmail.com>
 homepage: https://github.com/filiph/reddit_crawler
