@@ -73,7 +73,6 @@ Future<Null> main(List<String> arguments) async {
   //  return;
 
   final now = new DateTime.now();
-  const int monthCount = 3;
 
   final List<Map<String, Object>> entities = [];
 
@@ -96,49 +95,9 @@ Future<Null> main(List<String> arguments) async {
   await file.writeAsString(output);
   log.info("Output written to $file");
 
-  // Open previous JSON if it exists, update or add things (i.e. add new stuff
-  // at correct index, and replace newer data when permalink is the same).
   final previousFile = new File("output-$tech-all.json");
   if (await previousFile.exists()) {
-    final List<Map<String, Object>> existing =
-        JSON.decode(await previousFile.readAsString());
-    final List<Map<String, Object>> updated = [];
-    String _id(Map<String, Object> element) =>
-        (element['data'] as Map<String, Object>)['permalink'];
-
-    final Set<String> existingPermalinks = existing.map(_id).toSet();
-    assert(existingPermalinks.length == existing.length,
-        "There are duplicate permalinks in $previousFile.");
-
-    for (var entry in entities) {
-      // Add all new entries.
-      final entryPermalink = _id(entry);
-      if (existingPermalinks.contains(entryPermalink)) {
-        // Remove updated permalinks from the set.
-        existingPermalinks.remove(entryPermalink);
-      }
-      updated.add(entry);
-    }
-
-    for (var entry in existing) {
-      // Add all previous entries, but skip those that have been updated
-      // in the previous for loop.
-      final entryPermalink = _id(entry);
-      if (!existingPermalinks.contains(entryPermalink)) break;
-      updated.add(entry);
-    }
-
-    final updatedOutput = jsonEncoder.convert(updated);
-    await previousFile.writeAsString(updatedOutput);
-    log.info("Updated output written to $previousFile");
-
-    final updatedTsvFile =
-        new File(path.withoutExtension(previousFile.path) + ".tsv");
-    final updatedTsvOutput = submissionsJson2tsv(updated);
-
-    await updatedTsvFile.writeAsString(updatedTsvOutput.join('\n'));
-    log.info("Updated TSV written to $updatedTsvFile");
-    print('\nUpdated files:\n\t- $previousFile\n\t- $updatedTsvFile');
+    await _updatePreviousFile(previousFile, entities);
   } else {
     log.info("Previous $previousFile wasn't found.");
   }
@@ -178,6 +137,10 @@ const List<String> mobileSubreddits = const [
   "iOSProgramming",
   "learnandroid"
 ];
+
+/// Number of months (including the current one) to crawl
+/// (in reverse chronology).
+const int monthCount = 3;
 
 const List<String> webSubreddits = const [
   "webdev",
@@ -378,4 +341,49 @@ Future<String> _getListing(http.Client client, Uri uri) async {
       "X-Ratelimit-Remaining: ${response.headers['x-ratelimit-remaining']}");
   final json = await response.stream.bytesToString();
   return json;
+}
+
+/// Open previous JSON if it exists, update or add things (i.e. add new stuff
+/// at correct index, and replace newer data when permalink is the same).
+Future _updatePreviousFile(
+    File previousFile, List<Map<String, Object>> entities) async {
+  final List<Map<String, Object>> existing =
+      JSON.decode(await previousFile.readAsString());
+  final List<Map<String, Object>> updated = [];
+  String _id(Map<String, Object> element) =>
+      (element['data'] as Map<String, Object>)['permalink'];
+
+  final Set<String> existingPermalinks = existing.map(_id).toSet();
+  assert(existingPermalinks.length == existing.length,
+      "There are duplicate permalinks in $previousFile.");
+
+  for (var entry in entities) {
+    // Add all new entries.
+    final entryPermalink = _id(entry);
+    if (existingPermalinks.contains(entryPermalink)) {
+      // Remove updated permalinks from the set.
+      existingPermalinks.remove(entryPermalink);
+    }
+    updated.add(entry);
+  }
+
+  for (var entry in existing) {
+    // Add all previous entries, but skip those that have been updated
+    // in the previous for loop.
+    final entryPermalink = _id(entry);
+    if (!existingPermalinks.contains(entryPermalink)) break;
+    updated.add(entry);
+  }
+
+  final updatedOutput = jsonEncoder.convert(updated);
+  await previousFile.writeAsString(updatedOutput);
+  log.info("Updated output written to $previousFile");
+
+  final updatedTsvFile =
+      new File(path.withoutExtension(previousFile.path) + ".tsv");
+  final updatedTsvOutput = submissionsJson2tsv(updated);
+
+  await updatedTsvFile.writeAsString(updatedTsvOutput.join('\n'));
+  log.info("Updated TSV written to $updatedTsvFile");
+  print('\nUpdated files:\n\t- $previousFile\n\t- $updatedTsvFile');
 }
