@@ -17,15 +17,17 @@ Future<Null> main(List<String> arguments) async {
   final parser = new ArgParser(allowTrailingOptions: true);
 
   parser
-    ..addFlag('verbose', abbr: 'v', help: "Verbose mode.")
+    ..addFlag('verbose', abbr: 'v', help: "Verbose mode.", negatable: false)
     ..addOption('months',
         help: "Number of months to crawl in reverse chronological order.",
         defaultsTo: "3")
     ..addFlag('mobile',
         help:
-            "Use additional subreddits that specialize in mobile development.")
+            "Use additional subreddits that specialize in mobile development.",
+        negatable: false)
     ..addFlag('web',
-        help: "Use additional subreddits that specialize in web development.");
+        help: "Use additional subreddits that specialize in web development.",
+        negatable: false);
 
   final options = parser.parse(arguments);
 
@@ -79,7 +81,6 @@ Future<Null> main(List<String> arguments) async {
     //  client.close();
     //  return;
 
-
     for (int i = 0; i < monthCount; i++) {
       final to = new DateTime(now.year, now.month + 1 - i);
       final from = new DateTime(to.year, to.month - 1);
@@ -101,11 +102,7 @@ Future<Null> main(List<String> arguments) async {
   log.info("Output written to $file");
 
   final previousFile = new File("output-$tech-all.json");
-  if (await previousFile.exists()) {
-    await _updatePreviousFile(previousFile, entities);
-  } else {
-    log.info("Previous $previousFile wasn't found.");
-  }
+  await _updatePreviousFile(previousFile, entities);
 
   final tsvFile = new File(path.withoutExtension(file.path) + ".tsv");
   final tsvOutput = submissionsJson2tsv(entities);
@@ -348,8 +345,14 @@ Future<String> _getListing(http.Client client, Uri uri) async {
 /// at correct index, and replace newer data when permalink is the same).
 Future _updatePreviousFile(
     File previousFile, List<Map<String, Object>> entities) async {
-  final List<Map<String, Object>> existing =
-      JSON.decode(await previousFile.readAsString());
+  List<Map<String, Object>> existing;
+  try {
+    existing = JSON.decode(await previousFile.readAsString());
+  } on FileSystemException catch (e) {
+    log.info("$previousFile doesn't exist, will start from a blank one", e);
+    existing = [];
+  }
+
   final List<Map<String, Object>> updated = [];
   String _id(Map<String, Object> element) =>
       (element['data'] as Map<String, Object>)['permalink'];
