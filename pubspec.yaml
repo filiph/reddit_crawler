@@ -1,17 +1,20 @@
 name: reddit_crawl
 version: 0.0.1
 description: A sample command-line application.
-#author: Filip Hracek <email@example.com>
-#homepage: https://www.example.com
+author: Filip Hracek <filip.hracek@gmail.com>
+homepage: https://github.com/filiph/reddit_crawler
 
 environment:
-  sdk: '>=1.0.0 <2.0.0'
+  sdk: '>=1.23.0 <2.0.0'
 
 dependencies:
   args: ^0.13.7
-  http: ^0.11.3+9
+  http: ^0.11.3+13
   logging: ^0.11.3+1
   path: ^1.4.1
 
 dev_dependencies:
   test: '>=0.12.0 <0.13.0'
+
+executables:
+  reddit_crawl: main
