@@ -65,30 +65,31 @@ Future<Null> main(List<String> arguments) async {
   log.info("Final list of subreddits: ${subreddits.join(', ')}");
 
   final client = new http.Client();
-
-  while (!await _auth(client)) {
-    log.warning("Couldn't authenticate. Retrying in <10 seconds.");
-    await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
-  }
-
-  //  final subreddits = await findSubreddits("programming", client);
-  //  print(JSON.encode(subreddits));
-  //  client.close();
-  //  return;
-
   final now = new DateTime.now();
-
   final List<Map<String, Object>> entities = [];
 
-  for (int i = 0; i < monthCount; i++) {
-    final to = new DateTime(now.year, now.month + 1 - i);
-    final from = new DateTime(to.year, to.month - 1);
+  try {
+    while (!await _auth(client)) {
+      log.warning("Couldn't authenticate. Retrying in <10 seconds.");
+      await new Future.delayed(new Duration(seconds: _random.nextInt(10)));
+    }
 
-    log.info("Getting for ${from.year}-${from.month}.");
-    await getFullListing(tech, subreddits, from, to, client, entities);
+    //  final subreddits = await findSubreddits("programming", client);
+    //  print(JSON.encode(subreddits));
+    //  client.close();
+    //  return;
+
+
+    for (int i = 0; i < monthCount; i++) {
+      final to = new DateTime(now.year, now.month + 1 - i);
+      final from = new DateTime(to.year, to.month - 1);
+
+      log.info("Getting for ${from.year}-${from.month}.");
+      await getFullListing(tech, subreddits, from, to, client, entities);
+    }
+  } finally {
+    client.close();
   }
-
-  client.close();
 
   log.info("\nFound ${entities.length} articles.");
 
