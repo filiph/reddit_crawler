@@ -371,7 +371,7 @@ Future _updatePreviousFile(
     // Add all previous entries, but skip those that have been updated
     // in the previous for loop.
     final entryPermalink = _id(entry);
-    if (!existingPermalinks.contains(entryPermalink)) break;
+    if (!existingPermalinks.contains(entryPermalink)) continue;
     updated.add(entry);
   }
 
