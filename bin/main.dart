@@ -13,16 +13,22 @@ import 'package:path/path.dart' as path;
 import 'package:reddit_crawl/config.dart' show clientId, appSecret;
 import 'package:reddit_crawl/json2csv.dart';
 
-final Logger log = new Logger("main");
-
 Future<Null> main(List<String> arguments) async {
   final parser = new ArgParser(allowTrailingOptions: true);
 
-  parser..addFlag('verbose', abbr: 'v', help: "Verbose mode.");
+  parser
+    ..addFlag('verbose', abbr: 'v', help: "Verbose mode.")
+    ..addFlag('mobile',
+        help:
+            "Use additional subreddits that specialize in mobile development.")
+    ..addFlag('web',
+        help: "Use additional subreddits that specialize in web development.");
 
   final options = parser.parse(arguments);
 
   final bool verbose = options['verbose'];
+  final bool mobile = options['mobile'];
+  final bool web = options['web'];
 
   Logger.root.level = Level.FINEST;
   Logger.root.onRecord.listen((ev) {
@@ -41,7 +47,18 @@ Future<Null> main(List<String> arguments) async {
     return;
   }
 
-  final language = options.rest.single.trim();
+  final tech = options.rest.single.trim();
+
+  final subreddits = new List<String>.from(genericSubreddits);
+  if (mobile) {
+    log.info("Using mobile subreddits.");
+    subreddits.addAll(mobileSubreddits);
+  }
+  if (web) {
+    log.info("Using web subreddits.");
+    subreddits.addAll(webSubreddits);
+  }
+  log.info("Final list of subreddits: ${subreddits.join(', ')}");
 
   final client = new http.Client();
 
@@ -56,7 +73,7 @@ Future<Null> main(List<String> arguments) async {
   //  return;
 
   final now = new DateTime.now();
-  const int monthCount = 6;
+  const int monthCount = 3;
 
   final List<Map<String, Object>> entities = [];
 
@@ -65,7 +82,7 @@ Future<Null> main(List<String> arguments) async {
     final from = new DateTime(to.year, to.month - 1);
 
     log.info("Getting for ${from.year}-${from.month}.");
-    await getFullListing(language, from, to, client, entities);
+    await getFullListing(tech, subreddits, from, to, client, entities);
   }
 
   client.close();
@@ -74,14 +91,14 @@ Future<Null> main(List<String> arguments) async {
 
   final output = jsonEncoder.convert(entities);
 
-  final file = new File(
-      "output-$language-${now.toIso8601String().substring(0, 10)}.json");
+  final file =
+      new File("output-$tech-${now.toIso8601String().substring(0, 10)}.json");
   await file.writeAsString(output);
   log.info("Output written to $file");
 
   // Open previous JSON if it exists, update or add things (i.e. add new stuff
   // at correct index, and replace newer data when permalink is the same).
-  final previousFile = new File("output-$language-all.json");
+  final previousFile = new File("output-$tech-all.json");
   if (await previousFile.exists()) {
     final List<Map<String, Object>> existing =
         JSON.decode(await previousFile.readAsString());
@@ -139,7 +156,7 @@ Future<Null> main(List<String> arguments) async {
 /// or didactic in nature.
 ///
 /// Together, these 12 subreddits have 1M+ subscribers (cumulative).
-const List<String> subreddits = const [
+const List<String> genericSubreddits = const [
   // Generic
   "programming",
   "WatchPeopleCode",
@@ -156,13 +173,23 @@ const List<String> subreddits = const [
   "programming_tutorials"
 ];
 
+const List<String> mobileSubreddits = const [
+  "androiddev",
+  "iOSProgramming",
+  "learnandroid"
+];
+
+const List<String> webSubreddits = const [
+  "webdev",
+  "Frontend",
+  "web_programming"
+];
+
 var accessToken;
 
 final jsonEncoder = new JsonEncoder.withIndent('  ');
 
-/// The url part that creates a 'temporary multireddit' (like `pics+aww` in
-/// http://www.reddit.com/r/pics+aww).
-final String subredditsInUrl = subreddits.join('+');
+final Logger log = new Logger("main");
 
 final userAgent = "cli:pZEWj5ECqAuYhg:v0.0.1 (by /u/fphat)";
 
@@ -219,27 +246,9 @@ Future<List<Map<String, Object>>> findSubreddits(
   return entities;
 }
 
-/// Returns the decoded listing object returned by the Reddit API, or `null`
-/// if there was a problem (wrong response from the API or closed socket).
-///
-/// The returned object is documented here:
-/// https://www.reddit.com/dev/api/#listings
-Future<Map<String, dynamic>> getListingJson(http.Client client, Uri uri) async {
-  Map<String, dynamic> jsonObject;
-  try {
-    final nextJson = await _getListing(client, uri);
-    jsonObject = JSON.decode(nextJson);
-  } on FormatException {
-    log.warning("response isn't a parseable JSON");
-  } on SocketException {
-    log.warning("SocketException");
-  }
-  return jsonObject;
-}
-
 /// Gets the listing even if it's multi-page, and adds it to [entities].
-Future getFullListing(String tech, DateTime from, DateTime to,
-    http.Client client, List<Map<String, Object>> entities) async {
+Future getFullListing(String tech, List<String> subreddits, DateTime from,
+    DateTime to, http.Client client, List<Map<String, Object>> entities) async {
   // https://www.reddit.com/wiki/search#wiki_cloudsearch_syntax
   final cloudSearchQuery = "(and "
       "(or (field title '$tech') (field selftext '$tech')) "
@@ -264,6 +273,10 @@ Future getFullListing(String tech, DateTime from, DateTime to,
     'restrict_sr': 'on',
     'syntax': 'cloudsearch',
   };
+
+  /// The url part that creates a 'temporary multireddit' (like `pics+aww` in
+  /// http://www.reddit.com/r/pics+aww).
+  final String subredditsInUrl = subreddits.join('+');
 
   String afterToken;
 
@@ -296,6 +309,24 @@ Future getFullListing(String tech, DateTime from, DateTime to,
     afterToken = jsonObject['data']['after'];
     if (afterToken == null) break;
   }
+}
+
+/// Returns the decoded listing object returned by the Reddit API, or `null`
+/// if there was a problem (wrong response from the API or closed socket).
+///
+/// The returned object is documented here:
+/// https://www.reddit.com/dev/api/#listings
+Future<Map<String, dynamic>> getListingJson(http.Client client, Uri uri) async {
+  Map<String, dynamic> jsonObject;
+  try {
+    final nextJson = await _getListing(client, uri);
+    jsonObject = JSON.decode(nextJson);
+  } on FormatException {
+    log.warning("response isn't a parseable JSON");
+  } on SocketException {
+    log.warning("SocketException");
+  }
+  return jsonObject;
 }
 
 /// Updates [accessToken] by calling the Reddit OAuth API.
