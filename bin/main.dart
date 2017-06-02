@@ -96,12 +96,14 @@ Future<Null> main(List<String> arguments) async {
 
   final output = jsonEncoder.convert(entities);
 
+  final filePrefix = 'output-' + tech.replaceAll(new RegExp(r'[^\w]'), '');
+
   final file =
-      new File("output-$tech-${now.toIso8601String().substring(0, 10)}.json");
+      new File("$filePrefix-${now.toIso8601String().substring(0, 10)}.json");
   await file.writeAsString(output);
   log.info("Output written to $file");
 
-  final previousFile = new File("output-$tech-all.json");
+  final previousFile = new File("$filePrefix-all.json");
   await _updatePreviousFile(previousFile, entities);
 
   final tsvFile = new File(path.withoutExtension(file.path) + ".tsv");
